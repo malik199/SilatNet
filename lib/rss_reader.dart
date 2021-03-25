@@ -1,291 +1,196 @@
-import 'package:flutter/cupertino.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:developer';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'dart:developer' as dev;
-
-// Custom colors for my terminal theme.
-import 'package:flutter_rss_reader/colors.dart';
-
-// TODO 2: Import packages we added to our pubspec.yaml file.
-import 'package:webfeed/webfeed.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 
-class RSSReader extends StatefulWidget {
-  RSSReader() : super();
+Future<List<Photo>> fetchPhotos(http.Client client) async {
+  final response = await client
+      .get(Uri.parse('https://jsonplaceholder.typicode.com/photos'));
 
-  // Setting title for the action bar.
-  final String title = 'Silat.net | Jobs Feed';
+  //https://https://silat.net/wp-json/wp/v2/posts
+  //
 
-  @override
-  RSSReaderState createState() => RSSReaderState();
+  // Use the compute function to run parsePhotos in a separate isolate.
+  return compute(parsePhotos, response.body);
 }
 
-double _volume = 0.0;
+// A function that converts a response body into a List<Photo>.
+List<Photo> parsePhotos(String responseBody) {
+  final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
 
-class RSSReaderState extends State<RSSReader> {
-  // Feed URL being used for the app. In this case is the Hacker News job feed.
-  // TODO 3: Define RSS Feed URL
-  //static const String FEED_URL = 'https://hnrss.org/jobs';
-  static const String FEED_URL = 'https://silat.net/feed/';
+  return parsed.map<Photo>((json) => Photo.fromJson(json)).toList();
+}
 
-  // TODO 4: Create a variable to hold our RSS feed data.
-  RssFeed _feed; // RSS Feed Object
-  // TODO 5: Create a place holder for our title.
-  String _title; // Place holder for appbar title.
+class MyHomePage extends StatelessWidget {
+  final String title;
 
-  // TODO 6: Setup our notification messages.
-  // Notification Strings
-  static const String loadingMessage = 'Loading Feed...';
-  static const String feedLoadErrorMessage = 'Error Loading Feed.';
-  static const String feedOpenErrorMessage = 'Error Opening Feed.';
-
-  // TODO 7: Create a GlobalKey object to hold our key for the refresh feature.
-  // Key for the RefreshIndicator
-  // See the documentation linked below for info on the RefreshIndicatorState
-  // class and the GloablKey class.
-  // https://api.flutter.dev/flutter/widgets/GlobalKey-class.html
-  // https://api.flutter.dev/flutter/material/RefreshIndicatorState-class.html
-  GlobalKey<RefreshIndicatorState> _refreshKey;
-
-  // TODO 8: Create a method to update the user about data changes.
-  // Method to change the title as a way to inform the user what is going on
-  // while retrieving the RSS data.
-  updateTitle(title) {
-    setState(() {
-      _title = title;
-    });
-  }
-
-  // TODO 9: Create a method to reload the RSS feed data when the refresh feature is used.
-  // Method to help refresh the RSS data.
-  updateFeed(feed) {
-    setState(() {
-      _feed = feed;
-    });
-  }
-
-  // TODO 10: Create a method to navigate to the selected RSS item.
-  // Method to navigate to the URL of a RSS feed item.
-  Future<void> openFeed(String url) async {
-    if (await canLaunch(url)) {
-      await launch(
-        url,
-        forceSafariVC: true,
-        forceWebView: false,
-      );
-      return;
-    }
-    updateTitle(feedOpenErrorMessage);
-  }
-
-  // TODO 11: Create a method to load the RSS data.
-  // Method to load the RSS data.
-  load() async {
-    updateTitle(loadingMessage);
-    loadFeed().then((result) {
-      if (null == result || result.toString().isEmpty) {
-        // Notify user of error.
-        updateTitle(feedLoadErrorMessage);
-        return;
-      }
-      // If there is no error, load the RSS data into the _feed object.
-      updateFeed(result);
-      // Reset the title.
-      updateTitle("RSS reader");
-
-    });
-  }
-
-  // TODO 12: Create a method to grab the RSS data from the provided URL.
-  // Method to get the RSS data from the provided URL in the FEED_URL variable.
-  Future<RssFeed> loadFeed() async {
-    try {
-      final client = http.Client();
-      final response = await client.get(FEED_URL);
-      return RssFeed.parse(response.body);
-    } catch (e) {
-      print(e);
-      // handle any exceptions here
-    }
-    return null;
-  }
-
-  // TODO 13: Override the initState() method and setup the _refreshKey variable, update the title, and call the load() method.
-  // When the app is initialized, we setup our GlobalKey, set our title, and
-  // call the load() method which loads the RSS feed and UI.
-  @override
-  void initState() {
-    super.initState();
-    _refreshKey = GlobalKey<RefreshIndicatorState>();
-    updateTitle(widget.title);
-    load();
-  }
-
-  // TODO 14: Create a method to check if the RSS feed is empty.
-  // Method to check if the RSS feed is empty.
-  isFeedEmpty() {
-    return null == _feed || null == _feed.items;
-    dev.debugger();
-  }
-
-  // TODO 15: Create method to load the UI and RSS data.
-  // Method for the pull to refresh indicator and the actual ListView UI/Data.
-  body() {
-    return isFeedEmpty()
-        ? Center(
-            child: CircularProgressIndicator(),
-          )
-        : RefreshIndicator(
-            key: _refreshKey,
-            child: list(),
-            onRefresh: () => load(),
-          );
-  }
+  MyHomePage({Key key, this.title}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Scaffold(
-        appBar: AppBar(
-          title: Image.asset("assets/silatnet_longlogo.png", height: 80, width: 190),
-          backgroundColor: Color(0xffdd3336),
-          actions: <Widget>[
-            IconButton(
-              icon: const Icon(Icons.volume_up),
-              tooltip: 'Increase volume by 10',
-              onPressed: () {
-                setState(() {
-                  _volume += 10;
-                });
+    return Scaffold(
+      appBar: AppBar(
+        title:
+            Image.asset("assets/silatnet_longlogo.png", height: 80, width: 190),
+        backgroundColor: Color(0xffdd3336),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.volume_up),
+            tooltip: 'Increase volume by 10',
+            onPressed: () {
+              //do nothing
+            },
+          ),
+        ],
+      ),
+      body: FutureBuilder<List<Photo>>(
+        future: fetchPhotos(http.Client()),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) print(snapshot.error);
+
+          return snapshot.hasData
+              ? PhotosList(photos: snapshot.data)
+              : Center(child: CircularProgressIndicator());
+        },
+      ),
+      drawer: Drawer(
+        // Add a ListView to the drawer. This ensures the user can scroll
+        // through the options in the drawer if there isn't enough vertical
+        // space to fit everything.
+        child: ListView(
+          // Important: Remove any padding from the ListView.
+          padding: EdgeInsets.zero,
+          children: <Widget>[
+            DrawerHeader(
+              child: Text('Drawer Header'),
+              decoration: BoxDecoration(
+                color: Colors.blue,
+              ),
+            ),
+            ListTile(
+              title: Text('Item 1'),
+              onTap: () {
+                // Update the state of the app
+                // ...
+                // Then close the drawer
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: Text('Item 2'),
+              onTap: () {
+                // Update the state of the app
+                // ...
+                // Then close the drawer
+                Navigator.pop(context);
               },
             ),
           ],
         ),
-        body: body(),
       ),
     );
   }
+}
 
-  // TODO 16: Create the UI for the ListView and plug in the retrieved RSS data.
-  // ==================== ListView Components ====================
+class Photo {
+  final int albumId;
+  final int id;
+  final String title;
+  final String url;
+  final String thumbnailUrl;
 
-  // ListView
-  // Consists of two main widgets. A Container Widget displaying info about the
-  // RSS feed and the ListView containing the RSS Data. Both contained in a
-  // Column Widget.
-  list() {
-    dev.debugger();
-    return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          // Container displaying RSS feed info.
-          Expanded(
-            flex: 1,
-            child: Container(
-              padding: EdgeInsets.all(10.0),
-              margin: EdgeInsets.only(left: 5.0, right: 5.0),
-              decoration: customBoxDecoration(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Text(
-                    "Link: " + _feed.link,
-                    style: TextStyle(
-                      fontSize: 18.0,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    "Description: " + _feed.description,
-                    style: TextStyle(
-                        fontSize: 18.0,
-                        fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    "Last Build Date: " + _feed.lastBuildDate,
-                    style: TextStyle(
-                        fontSize: 18.0,
-                        fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+  Photo({this.albumId, this.id, this.title, this.url, this.thumbnailUrl});
+
+  factory Photo.fromJson(Map<String, dynamic> json) {
+    return Photo(
+      albumId: json['albumId'] as int,
+      id: json['id'] as int,
+      title: json['title'] as String,
+      url: json['url'] as String,
+      thumbnailUrl: json['thumbnailUrl'] as String,
+    );
+  }
+}
+
+class PhotosList extends StatelessWidget {
+  final List<Photo> photos;
+
+  PhotosList({Key key, this.photos}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 1,
+      ),
+      itemCount: photos.length,
+      itemBuilder: (context, index) {
+        return Card(
+            child: makeCard(photos[index]) //return Image.network(photos[index].thumbnailUrl);
+            );
+      },
+    );
+  }
+}
+
+otherCard(photo) {
+  return ListTile(
+    leading: photo,
+    title: Text("This is My title"),
+    subtitle: Text("Thius is my Subtitle"),
+    trailing: Icon(Icons.keyboard_arrow_right),
+    contentPadding: EdgeInsets.all(5.0),
+    //onTap: () => openFeed(item.link)
+  );
+}
+
+makeCard(photo) {
+  return Card(
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      children: [
+      Image.network(photo.thumbnailUrl),
+        Container(
+          padding: const EdgeInsets.all(6.0),
+          decoration: BoxDecoration(color: Colors.green),
+          child: Text(
+            photo.title,
+            style: new TextStyle(
+                fontSize: 20.0,
+                color: Colors.black,
+                fontWeight: FontWeight.bold),
           ),
-          // ListView that displays the RSS data.
-          Expanded(
-            flex: 3,
-            child: Container(
-              child: ListView.builder(
-                padding: EdgeInsets.all(5.0),
-                itemCount: _feed.items.length,
-                itemBuilder: (BuildContext context, int index) {
-                  final item = _feed.items[index];
-                  return Container(
-                    margin: EdgeInsets.only(
-                      bottom: 10.0,
-                    ),
-                    decoration: customBoxDecoration(),
-                    child: ListTile(
-                      title: title(item.title),
-                      subtitle: subtitle(item.pubDate.toString()),
-                      trailing: rightIcon(),
-                      contentPadding: EdgeInsets.all(5.0),
-                      onTap: () => openFeed(item.link),
-                    ),
-                  );
-                },
-              ),
-            ),
+        ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(6.0, 2.0, 6.0, 2.0),
+          color: const Color.fromARGB(0xFF, 0x42, 0xA5, 0xF5),
+          child: Text(
+            'Greyhound divisively hello coldly wonderfully marginally far upon excluding. Greyhound divisively hello coldly wonderfully marginally far upon excluding. ',
+            style: TextStyle(color: Colors.black.withOpacity(0.6)),
+            textAlign: TextAlign.left,
           ),
-        ]);
-  }
-
-  // Method that returns the Text Widget for the title of our RSS data.
-  title(title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 18.0,
-        fontWeight: FontWeight.w500,
-      ),
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  // Method that returns the Text Widget for the subtitle of our RSS data.
-  subtitle(subTitle) {
-    return Text(
-      subTitle,
-      style: TextStyle(
-        fontSize: 15.0,
-        fontWeight: FontWeight.w300,
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  // Method that returns Icon Widget.
-  rightIcon() {
-    return Icon(
-      Icons.keyboard_arrow_right,
-      size: 30.0,
-    );
-  }
-
-  // Custom box decoration for the Container Widgets.
-  BoxDecoration customBoxDecoration() {
-    return BoxDecoration(
-      border: Border.all(
-        // border color
-        width: 1.0,
-      ),
-    );
-  }
-
-// ====================  End ListView Components ====================
+        ),
+        ButtonBar(
+          alignment: MainAxisAlignment.start,
+          children: [
+            TextButton(
+              onPressed: () {
+                // Perform some action
+              },
+              child: const Text('ACTION 1'),
+            ),
+            TextButton(
+              onPressed: () {
+                // Perform some action
+              },
+              child: const Text('ACTION 2'),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 }

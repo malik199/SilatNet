@@ -13,7 +13,7 @@ class MyApp extends StatelessWidget {
         // colors.dart
         brightness: Brightness.light,
       ),
-      home: RSSReader(),
+      home: MyHomePage(),
     );
   }
 }
